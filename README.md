@@ -138,7 +138,7 @@
 ```yaml
 services:
   nove:
-    image: qiufeng668/nove-media-kit:latest
+    image: imjix/nove-media-kit:latest
     container_name: nove
     restart: unless-stopped
     network_mode: host
@@ -169,7 +169,7 @@ docker run -d \
   -e NOVA_SERVER_ADDR=:8098 \
   -v "$PWD/config:/config" \
   -v "$PWD/media:/media" \
-  qiufeng668/nove-media-kit:latest
+  imjix/nove-media-kit:latest
 ```
 
 ### 首次访问
