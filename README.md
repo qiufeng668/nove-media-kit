@@ -323,6 +323,91 @@ curl http://127.0.0.1:8098/health
 
 ---
 
+## 自动更新
+
+用 [Watchtower](https://github.com/containrrr/watchtower) 监听镜像，有新版本自动拉取并重建容器，**数据不受影响**。
+
+### 部署 Watchtower
+
+```bash
+docker run -d \
+  --name watchtower \
+  --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e TZ=Asia/Shanghai \
+  -e WATCHTOWER_POLL_INTERVAL=21600 \
+  -e WATCHTOWER_CLEANUP=true \
+  containrrr/watchtower:latest nove
+```
+
+| 参数 | 说明 |
+|---|---|
+| `WATCHTOWER_POLL_INTERVAL` | 检查间隔（秒）。21600 = 6 小时 |
+| `WATCHTOWER_CLEANUP` | 更新后删除旧镜像 |
+| 末尾的 `nove` | **只监听这个容器**，其他容器不动 |
+
+### 立即检查一次（不用等 6 小时）
+
+```bash
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower --run-once nove
+```
+
+输出里看 `Updated=0` 表示已是最新，`Updated=1` 表示更新了一个。
+
+> **不要用 `docker kill -s HUP watchtower` 触发**，会让 Watchtower 容器直接退出。
+
+### 手动更新（不用 Watchtower）
+
+```bash
+# 1. 备份配置（保险）
+tar czf ./config-backup-$(date +%F).tar.gz ./config
+
+# 2. 拉新镜像
+docker pull imjix/nove-media-kit:latest
+
+# 3. 停旧容器并改名（先不删）
+docker stop nove && docker rename nove nove-old
+
+# 4. 用新镜像启动（挂载同一个 config 目录）
+docker run -d \
+  --name nove \
+  --restart unless-stopped \
+  --network host \
+  -e TZ=Asia/Shanghai \
+  -e NOVA_SERVER_ADDR=:8098 \
+  -v "$PWD/config:/config" \
+  -v "$PWD/media:/media" \
+  imjix/nove-media-kit:latest
+
+# 5. 确认正常后删旧容器
+docker rm -f nove-old
+```
+
+### 为什么数据不会丢
+
+```
+镜像（docker image）      = 程序本身，不含任何用户数据
+挂载目录（./config）      = 运行时数据：数据库、插件、日志、封面
+```
+
+容器重建时 `./config` 挂载不变，**用户、媒体库、插件、播放记录全在**。
+
+镜像内的 `/config` 是空目录，只是占位；真实数据始终在宿主机的挂载目录里。
+
+### 回滚
+
+如果新版本有问题：
+
+```bash
+docker stop nove && docker rm nove
+docker run -d --name nove ... imjix/nove-media-kit:v4   # 用固定版本标签
+```
+
+配置目录没动过，回滚后数据照常可用。
+
+---
+
 ## 系统要求
 
 - Linux（amd64 / arm64，双架构镜像）
